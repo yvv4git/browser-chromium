@@ -13,6 +13,8 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
+
+	"github.com/yvv4git/browser-chromium/examples/internal/cdp"
 )
 
 func main() {
@@ -26,7 +28,7 @@ func main() {
 		"https://httpbin.org/status/500",
 	}
 
-	browser := rod.New().ControlURL(*addr).MustConnect()
+	browser := cdp.Connect(*addr)
 
 	for _, link := range urls {
 		fmt.Printf("\n=== %s ===\n", link)

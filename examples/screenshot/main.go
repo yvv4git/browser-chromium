@@ -11,8 +11,9 @@ import (
 	"flag"
 	"log"
 
-	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/utils"
+
+	"github.com/yvv4git/browser-chromium/examples/internal/cdp"
 )
 
 func main() {
@@ -22,7 +23,7 @@ func main() {
 	full := flag.Bool("full", false, "capture full page instead of viewport")
 	flag.Parse()
 
-	browser := rod.New().ControlURL(*addr).MustConnect()
+	browser := cdp.Connect(*addr)
 
 	page := browser.MustPage(*pageURL).MustWaitLoad()
 	defer page.MustClose()

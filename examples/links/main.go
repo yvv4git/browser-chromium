@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-rod/rod"
+	"github.com/yvv4git/browser-chromium/examples/internal/cdp"
 )
 
 var staticExt = []string{".png", ".jpg", ".jpeg", ".gif", ".svg", ".css", ".js", ".woff", ".woff2", ".pdf", ".zip"}
@@ -37,7 +37,7 @@ func main() {
 	limit := flag.Int("limit", 20, "max links to print")
 	flag.Parse()
 
-	browser := rod.New().ControlURL(*addr).MustConnect()
+	browser := cdp.Connect(*addr)
 
 	page := browser.MustPage(*baseURL).MustWaitLoad()
 	defer page.MustClose()
