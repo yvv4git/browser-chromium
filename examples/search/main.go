@@ -14,6 +14,8 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/utils"
+
+	"github.com/yvv4git/browser-chromium/examples/internal/cdp"
 )
 
 func main() {
@@ -22,7 +24,7 @@ func main() {
 	output := flag.String("output", "article.png", "article image output file")
 	flag.Parse()
 
-	browser := rod.New().ControlURL(*addr).MustConnect()
+	browser := cdp.Connect(*addr)
 
 	page := browser.MustPage("https://www.wikipedia.org").MustWaitLoad()
 	defer page.MustClose()

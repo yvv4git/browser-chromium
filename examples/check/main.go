@@ -13,7 +13,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/go-rod/rod"
+	"github.com/yvv4git/browser-chromium/examples/internal/cdp"
 )
 
 func main() {
@@ -27,7 +27,7 @@ func main() {
 	}
 	target := flag.Arg(0)
 
-	browser := rod.New().ControlURL(*addr).MustConnect()
+	browser := cdp.Connect(*addr)
 
 	page := browser.MustPage(target).MustWaitLoad()
 	defer page.MustClose()

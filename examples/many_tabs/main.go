@@ -11,13 +11,15 @@ import (
 	"fmt"
 
 	"github.com/go-rod/rod"
+
+	"github.com/yvv4git/browser-chromium/examples/internal/cdp"
 )
 
 func main() {
 	addr := flag.String("addr", "http://localhost:9222", "CDP endpoint of the Chromium container")
 	flag.Parse()
 
-	browser := rod.New().ControlURL(*addr).MustConnect()
+	browser := cdp.Connect(*addr)
 
 	tabs := []string{
 		"https://www.wikipedia.org",
