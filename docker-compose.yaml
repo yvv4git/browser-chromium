@@ -1,8 +1,10 @@
 services:
   chromium:
-    image: yvv4docker/browser-chromium:latest
+    image: yvv4docker/browser-chromium:${BROWSER_VARIANT:-default}
     container_name: browser-chromium
-    build: .
+    build:
+      context: .
+      dockerfile: docker/${BROWSER_VARIANT:-default}/Dockerfile
     ports:
       - "9222:9223"
       - "3000:3000"
@@ -10,6 +12,7 @@ services:
       - "RESOLUTION=${RESOLUTION:-1920x1080}"
       - "PROXY=${PROXY:-}"
       - "CHROME_ARGS_EXTRA=${CHROME_ARGS_EXTRA:-}"
+      - "BROWSER_MODE=${BROWSER_MODE:-vnc}"
     volumes:
       - "./profile:/config"
     extra_hosts:

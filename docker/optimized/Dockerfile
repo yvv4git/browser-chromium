@@ -25,7 +25,7 @@ ENV PROXY=""
 
 EXPOSE 9222 9223 5900 3000
 
-COPY entrypoint.sh /entrypoint.sh
+COPY docker/optimized/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
