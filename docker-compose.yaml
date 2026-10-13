@@ -12,6 +12,7 @@ services:
       - "RESOLUTION=${RESOLUTION:-1920x1080}"
       - "PROXY=${PROXY:-}"
       - "CHROME_ARGS_EXTRA=${CHROME_ARGS_EXTRA:-}"
+      - "BROWSER_MODE=${BROWSER_MODE:-vnc}"
     volumes:
       - "./profile:/config"
     extra_hosts:
