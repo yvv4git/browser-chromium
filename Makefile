@@ -4,7 +4,7 @@ compose-up:
 compose-down:
 	docker compose down
 
-image-build:
+image-build-default:
 	docker build -f docker/default/Dockerfile -t yvv4docker/browser-chromium:default .
 
 image-build-optimized:

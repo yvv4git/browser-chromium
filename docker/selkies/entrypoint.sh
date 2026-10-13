@@ -2,7 +2,7 @@
 set -e
 
 cleanup() {
-    kill $CHROME_PID $SELKIES_PID $XVFB_PID 2>/dev/null
+    kill $CHROME_PID $SELKIES_PID $XVFB_PID $WINFIT_PID 2>/dev/null
     wait $CHROME_PID $SELKIES_PID $XVFB_PID 2>/dev/null
 }
 trap cleanup SIGTERM SIGINT
@@ -52,6 +52,20 @@ fi
 
 env -u LD_PRELOAD selkies $SELKIES_CLI &
 SELKIES_PID=$!
+
+(
+    while true; do
+        cur=$(xrandr --display :99 2>/dev/null | awk '/\*/{print $1; exit}')
+        w=${cur%x*}; h=${cur#*x}
+        if [ "$w" -gt 100 ] 2>/dev/null && [ "$h" -gt 100 ] 2>/dev/null; then
+            xdotool search --onlyvisible --name 'Chromium$' 2>/dev/null | while read -r id; do
+                xdotool windowsize "$id" "$w" "$h" 2>/dev/null || true
+            done
+        fi
+        sleep 2
+    done
+) &
+WINFIT_PID=$!
 
 CHROME_ARGS=(
     --no-first-run

@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium-l10n \
     socat \
     xvfb \
+    xdotool \
     x11-utils \
     x11-xserver-utils \
     ca-certificates \
