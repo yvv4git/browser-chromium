@@ -5,7 +5,10 @@ compose-down:
 	docker compose down
 
 image-build:
-	docker build -t yvv4docker/browser-chromium .
+	docker build -f docker/default/Dockerfile -t yvv4docker/browser-chromium:default .
+
+image-build-optimized:
+	docker build -f docker/optimized/Dockerfile -t yvv4docker/browser-chromium:optimized .
 
 image-push:
 	docker push yvv4docker/browser-chromium:latest
@@ -14,7 +17,7 @@ image-pull:
 	docker pull yvv4docker/browser-chromium:latest
 
 image-remove:
-	docker rmi yvv4docker/browser-chromium:latest
+	docker rmi yvv4docker/browser-chromium:default yvv4docker/browser-chromium:optimized
 
 check:
 	curl -s http://localhost:9222/json/version

@@ -3,7 +3,7 @@
 ![Chromium Browser logo](./assets/logo.jpeg)
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Docker](https://img.shields.io/badge/Docker-Image-2496ED?style=flat-square&logo=docker&logoColor=white)](Dockerfile)
+[![Docker](https://img.shields.io/badge/Docker-Image-2496ED?style=flat-square&logo=docker&logoColor=white)](docker/default/Dockerfile)
 [![Browser](https://img.shields.io/badge/Browser-Chromium-0098EA?style=flat-square)](https://www.chromium.org)
 [![Buy me a TON](https://img.shields.io/badge/Buy%20me%20a%20TON-0098EA?style=flat-square)](#support)
 
@@ -61,15 +61,19 @@ Create a `.env` file (see `.env.example`):
 
 | Variable            | Description                                       |
 | ------------------- | ------------------------------------------------- |
+| `BROWSER_VARIANT`   | Browser image version: `default` or `optimized`   |
 | `RESOLUTION`        | Screen resolution                                 |
 | `PROXY`             | Proxy URL e.g. `http://host.docker.internal:8138` |
 | `CHROME_ARGS_EXTRA` | Extra Chrome flags                                |
 
 | Variable            | Default     |
 | ------------------- | ----------- |
+| `BROWSER_VARIANT`   | `default`   |
 | `RESOLUTION`        | `1920x1080` |
 | `PROXY`             | empty       |
 | `CHROME_ARGS_EXTRA` | empty       |
+
+Set `BROWSER_VARIANT=optimized` in `.env` to run the optimized image.
 
 ## Usage
 
@@ -94,13 +98,15 @@ curl http://localhost:9222/json/version
 
 ## Project structure
 
-| File                  | Description                                             |
-| --------------------- | ------------------------------------------------------- |
-| `Dockerfile`          | Debian bookworm-slim with chromium, xvfb, x11vnc, novnc |
-| `entrypoint.sh`       | Starts Xvfb, VNC, noVNC and Chromium                    |
-| `docker-compose.yaml` | Service definition with ports and volumes               |
-| `Makefile`            | Build, run, stop commands                               |
-| `.env.example`        | Environment variables template                          |
+| Path                             | Description                                             |
+| -------------------------------- | ------------------------------------------------------- |
+| `docker/default/Dockerfile`      | Base image: Debian bookworm-slim with chromium, VNC     |
+| `docker/default/entrypoint.sh`   | Starts Xvfb, VNC, noVNC and Chromium                    |
+| `docker/optimized/Dockerfile`    | Resource-optimized image variant                        |
+| `docker/optimized/entrypoint.sh` | Launcher for the optimized variant                      |
+| `docker-compose.yaml`            | Service definition with ports and volumes               |
+| `Makefile`                       | Build, run, stop commands                               |
+| `.env.example`                   | Environment variables template                          |
 
 ## License
 
