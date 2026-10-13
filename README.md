@@ -8,7 +8,9 @@
 [![Buy me a TON](https://img.shields.io/badge/Buy%20me%20a%20TON-0098EA?style=flat-square)](#support)
 
 Docker image with Chromium browser with VNC/noVNC support
-for remote access and automation.
+for remote access and automation, plus a variant with
+[Selkies](https://github.com/selkies-project/selkies) (H.264/WebSocket
+streaming) instead of VNC.
 
 ## Table of contents
 
@@ -25,6 +27,7 @@ for remote access and automation.
 
 - Chromium with headless support via Xvfb
 - Interactive VNC access via noVNC web interface
+- Alternative variant: Selkies low-latency H.264 streaming web UI (`docker/selkies`)
 - Chrome DevTools Protocol (CDP) for automation
 - HTTP proxy support
 - Profile persistence via volume
@@ -49,6 +52,18 @@ Open noVNC in browser:
 http://localhost:3000
 ```
 
+Or build and run the Selkies variant instead (H.264 over WebSocket,
+port 8080):
+
+```bash
+make image-build-selkies
+BROWSER_VARIANT=selkies make compose-up
+```
+
+```text
+http://localhost:8080
+```
+
 Check CDP:
 
 ```bash
@@ -61,10 +76,11 @@ Create a `.env` file (see `.env.example`):
 
 | Variable            | Description                                       |
 | ------------------- | ------------------------------------------------- |
-| `BROWSER_VARIANT`   | Browser image version: `default` or `optimized`   |
+| `BROWSER_VARIANT`   | Browser image version: `default`, `optimized` or `selkies` |
 | `RESOLUTION`        | Screen resolution                                 |
 | `PROXY`             | Proxy URL e.g. `http://host.docker.internal:8138` |
 | `CHROME_ARGS_EXTRA` | Extra Chrome flags                                |
+| `SELKIES_BASIC_AUTH_PASSWORD` | Selkies web UI login (empty = no login)  |
 
 | Variable            | Default     |
 | ------------------- | ----------- |
@@ -95,6 +111,7 @@ curl http://localhost:9222/json/version
 | ---- | ------------------------------ |
 | 9222 | Chrome DevTools Protocol (CDP) |
 | 3000 | noVNC web interface            |
+| 8080 | Selkies web interface (selkies variant) |
 
 ## Project structure
 
@@ -104,6 +121,8 @@ curl http://localhost:9222/json/version
 | `docker/default/entrypoint.sh`   | Starts Xvfb, VNC, noVNC and Chromium                    |
 | `docker/optimized/Dockerfile`    | Resource-optimized image variant                        |
 | `docker/optimized/entrypoint.sh` | Launcher for the optimized variant                      |
+| `docker/selkies/Dockerfile`      | Selkies variant: chromium + Selkies instead of VNC      |
+| `docker/selkies/entrypoint.sh`   | Starts Xvfb, Selkies and Chromium                       |
 | `docker-compose.yaml`            | Service definition with ports and volumes               |
 | `Makefile`                       | Build, run, stop commands                               |
 | `.env.example`                   | Environment variables template                          |

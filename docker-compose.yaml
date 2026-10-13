@@ -8,11 +8,13 @@ services:
     ports:
       - "9222:9223"
       - "3000:3000"
+      - "8080:8080"
     environment:
       - "RESOLUTION=${RESOLUTION:-1920x1080}"
       - "PROXY=${PROXY:-}"
       - "CHROME_ARGS_EXTRA=${CHROME_ARGS_EXTRA:-}"
       - "BROWSER_MODE=${BROWSER_MODE:-vnc}"
+      - "SELKIES_BASIC_AUTH_PASSWORD=${SELKIES_BASIC_AUTH_PASSWORD:-}"
     volumes:
       - "./profile:/config"
     extra_hosts:
