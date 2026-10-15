@@ -15,6 +15,7 @@ streaming) instead of VNC.
 ## Table of contents
 
 - [Features](#features)
+- [Optimized](#optimized)
 - [Quick Start](#quick-start)
 - [Configuration](#configuration)
 - [Usage](#usage)
@@ -32,6 +33,27 @@ streaming) instead of VNC.
 - HTTP proxy support
 - Profile persistence via volume
 - Log size limits (10 MB x 3 files)
+
+## Optimized
+
+The `docker/optimized` variant (`BROWSER_VARIANT=optimized`) reduces CPU and
+RAM consumption compared to `docker/default`:
+
+- Headless mode (`BROWSER_MODE=headless`) - Xvfb, x11vnc and noVNC are not
+  started at all; only Chromium runs, with `--headless=new` appended
+  automatically
+- Background services disabled: component updates, sync, background
+  networking, domain reliability, crash reporting (breakpad), client-side
+  phishing detection, metrics reporting, extensions, default apps and
+  field trial config
+- Disabled Chromium features: WebRTC, Translate, MediaRouter,
+  OptimizationHints, CalculateNativeWinOcclusion, out-of-process AudioService
+- GPU rasterization disabled; rasterization capped at 2 threads
+  (`--num-raster-threads=2`)
+- Renderer process count capped at 4 (`--renderer-process-limit=4`)
+- V8 heap capped at 256 MB (`--js-flags=--max-old-space-size=256`)
+- Disk cache capped at 64 MB (`--disk-cache-size=67108864`)
+- Autoplay restricted to user gesture (`--autoplay-policy=user-gesture-required`)
 
 ## Quick Start
 
