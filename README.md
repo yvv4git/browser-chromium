@@ -10,7 +10,8 @@
 Docker image with Chromium browser with VNC/noVNC support
 for remote access and automation, plus a variant with
 [Selkies](https://github.com/selkies-project/selkies) (H.264/WebSocket
-streaming) instead of VNC.
+streaming) instead of VNC, and a minimal headless variant with
+`chrome-headless-shell` for CDP-only automation.
 
 ## Table of contents
 
@@ -29,6 +30,7 @@ streaming) instead of VNC.
 - Chromium with headless support via Xvfb
 - Interactive VNC access via noVNC web interface
 - Alternative variant: Selkies low-latency H.264 streaming web UI (`docker/selkies`)
+- Minimal headless variant: `chrome-headless-shell` with CDP only (`docker/headless`)
 - Chrome DevTools Protocol (CDP) for automation
 - HTTP proxy support
 - Profile persistence via volume
@@ -86,6 +88,13 @@ BROWSER_VARIANT=selkies make compose-up
 http://localhost:8080
 ```
 
+Or build and run the minimal headless variant (CDP only):
+
+```bash
+make image-build-headless
+BROWSER_VARIANT=headless make compose-up
+```
+
 Check CDP:
 
 ```bash
@@ -98,7 +107,7 @@ Create a `.env` file (see `.env.example`):
 
 | Variable            | Description                                       |
 | ------------------- | ------------------------------------------------- |
-| `BROWSER_VARIANT`   | Browser image version: `default`, `optimized` or `selkies` |
+| `BROWSER_VARIANT`   | Browser image version: `default`, `optimized`, `selkies` or `headless` |
 | `RESOLUTION`        | Screen resolution                                 |
 | `PROXY`             | Proxy URL e.g. `http://host.docker.internal:8138` |
 | `CHROME_ARGS_EXTRA` | Extra Chrome flags                                |
@@ -135,6 +144,8 @@ curl http://localhost:9222/json/version
 | 3000 | noVNC web interface            |
 | 8080 | Selkies web interface (selkies variant) |
 
+The `headless` variant exposes only CDP (9222/9223 inside the container network).
+
 ## Project structure
 
 | Path                             | Description                                             |
@@ -145,6 +156,8 @@ curl http://localhost:9222/json/version
 | `docker/optimized/entrypoint.sh` | Launcher for the optimized variant                      |
 | `docker/selkies/Dockerfile`      | Selkies variant: chromium + Selkies instead of VNC      |
 | `docker/selkies/entrypoint.sh`   | Starts Xvfb, Selkies and Chromium                       |
+| `docker/headless/Dockerfile`     | Minimal headless image: `chrome-headless-shell` only    |
+| `docker/headless/entrypoint.sh`  | Starts socat and `chrome-headless-shell` CDP server     |
 | `docker-compose.yaml`            | Service definition with ports and volumes               |
 | `Makefile`                       | Build, run, stop commands                               |
 | `.env.example`                   | Environment variables template                          |
