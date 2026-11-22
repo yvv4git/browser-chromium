@@ -26,6 +26,7 @@ go run ./stress_testing
 | `-proxy`      | empty                            | HTTP proxy URL, e.g. `http://host:8138`   |
 | `-list`       | `examples/stress_testing/list.txt` | Path to file with URLs                  |
 | `-block-media`| `false`                          | Block media requests (images/video/audio/fonts) |
+| `-timeout`    | `10s`                            | Per-page load timeout                      |
 
 ## Examples
 

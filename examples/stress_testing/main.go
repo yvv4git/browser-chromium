@@ -31,6 +31,7 @@ const (
 	defaultAddr    = "http://localhost:9222"
 	defaultWorkers = 5
 	defaultList    = "examples/stress_testing/list.txt"
+	defaultTimeout = 10 * time.Second
 )
 
 var blockedMediaURLs = []string{
@@ -80,6 +81,7 @@ func main() {
 	proxy := flag.String("proxy", "", "HTTP proxy URL (empty = direct)")
 	listPath := flag.String("list", defaultList, "path to file with URLs")
 	blockMedia := flag.Bool("block-media", false, "block media requests (images, video, audio, fonts)")
+	pageTimeout := flag.Duration("timeout", defaultTimeout, "per-page load timeout")
 	flag.Parse()
 
 	if *workers < 1 {
@@ -123,7 +125,7 @@ func main() {
 	var wg sync.WaitGroup
 	for i := range *workers {
 		wg.Add(1)
-		go worker(ctx, &wg, i+1, browser, browserContextID, jobs, st, *blockMedia)
+		go worker(ctx, &wg, i+1, browser, browserContextID, jobs, st, *blockMedia, *pageTimeout)
 	}
 
 	fmt.Printf("workers: %d, targets: %d\n", *workers, len(targets))
@@ -142,17 +144,17 @@ loop:
 	printStats(start, st)
 }
 
-func worker(ctx context.Context, wg *sync.WaitGroup, id int, browser *rod.Browser, browserContextID proto.BrowserBrowserContextID, jobs <-chan string, st *stats, blockMedia bool) {
+func worker(ctx context.Context, wg *sync.WaitGroup, id int, browser *rod.Browser, browserContextID proto.BrowserBrowserContextID, jobs <-chan string, st *stats, blockMedia bool, pageTimeout time.Duration) {
 	defer wg.Done()
 	for target := range jobs {
 		if ctx.Err() != nil {
 			return
 		}
-		openAndClose(ctx, id, browser, browserContextID, target, st, blockMedia)
+		openAndClose(ctx, id, browser, browserContextID, target, st, blockMedia, pageTimeout)
 	}
 }
 
-func openAndClose(ctx context.Context, workerID int, browser *rod.Browser, browserContextID proto.BrowserBrowserContextID, target string, st *stats, blockMedia bool) {
+func openAndClose(ctx context.Context, workerID int, browser *rod.Browser, browserContextID proto.BrowserBrowserContextID, target string, st *stats, blockMedia bool, pageTimeout time.Duration) {
 	started := time.Now()
 	var status atomic.Int32
 	var bytes atomic.Int64
@@ -174,11 +176,11 @@ func openAndClose(ctx context.Context, workerID int, browser *rod.Browser, brows
 		}
 	}()
 
-	navCtx, navCancel := context.WithCancel(ctx)
+	navCtx, navCancel := context.WithTimeout(ctx, pageTimeout)
 	defer navCancel()
 	page = page.Context(navCtx)
 	go func() {
-		<-ctx.Done()
+		<-navCtx.Done()
 		_ = page.StopLoading()
 		_ = page.Close()
 	}()
@@ -209,11 +211,22 @@ func openAndClose(ctx context.Context, workerID int, browser *rod.Browser, brows
 	}
 
 	if err := page.Navigate(target); err != nil {
+		if ctx.Err() != nil {
+			return
+		}
+		if navCtx.Err() != nil {
+			fmt.Printf("worker %d: timeout %s\n", workerID, target)
+			return
+		}
 		fmt.Printf("worker %d: navigate %s: %v\n", workerID, target, err)
 		return
 	}
 	if err := page.WaitLoad(); err != nil {
 		if ctx.Err() != nil {
+			return
+		}
+		if navCtx.Err() != nil {
+			fmt.Printf("worker %d: timeout %s\n", workerID, target)
 			return
 		}
 		fmt.Printf("worker %d: load %s: %v\n", workerID, target, err)
