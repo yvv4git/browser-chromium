@@ -109,6 +109,7 @@ Create a `.env` file (see `.env.example`):
 | ------------------- | ------------------------------------------------- |
 | `BROWSER_VARIANT`   | Browser image version: `default`, `optimized`, `selkies` or `headless` |
 | `RESOLUTION`        | Screen resolution                                 |
+| `MEM_LIMIT`         | Container memory limit                            |
 | `PROXY`             | Proxy URL e.g. `http://host.docker.internal:8138` |
 | `CHROME_ARGS_EXTRA` | Extra Chrome flags                                |
 | `SELKIES_BASIC_AUTH_PASSWORD` | Selkies web UI login (empty = no login)  |
@@ -117,6 +118,7 @@ Create a `.env` file (see `.env.example`):
 | ------------------- | ----------- |
 | `BROWSER_VARIANT`   | `default`   |
 | `RESOLUTION`        | `1920x1080` |
+| `MEM_LIMIT`         | `100m`      |
 | `PROXY`             | empty       |
 | `CHROME_ARGS_EXTRA` | empty       |
 

@@ -1,0 +1,10 @@
+https://example.com
+https://www.wikipedia.org
+https://go.dev
+https://www.python.org
+https://www.kernel.org
+https://developer.mozilla.org
+https://github.com
+https://news.ycombinator.com
+https://www.rust-lang.org
+https://httpbin.org/html
