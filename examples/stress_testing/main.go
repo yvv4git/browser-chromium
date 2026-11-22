@@ -293,10 +293,22 @@ func printStats(start time.Time, st *stats) {
 	}
 	_ = w.Flush()
 
+	tableResults := make([]pageResult, len(results))
+	copy(tableResults, results)
+	sort.Slice(tableResults, func(i, j int) bool {
+		if tableResults[i].url != tableResults[j].url {
+			return tableResults[i].url < tableResults[j].url
+		}
+		if tableResults[i].status != tableResults[j].status {
+			return tableResults[i].status < tableResults[j].status
+		}
+		return tableResults[i].bytes > tableResults[j].bytes
+	})
+
 	fmt.Println()
 	pw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(pw, "#\tURL\tRESULT")
-	for i, r := range results {
+	for i, r := range tableResults {
 		result := fmt.Sprintf("%s status=%d size=%s", r.duration.Round(time.Millisecond), r.status, formatBytes(r.bytes))
 		if r.status == 0 && r.err != "" {
 			result = fmt.Sprintf("%s status=0 size=%s error=%s", r.duration.Round(time.Millisecond), formatBytes(r.bytes), r.err)
