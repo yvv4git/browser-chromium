@@ -8,3 +8,4 @@ https://github.com
 https://news.ycombinator.com
 https://www.rust-lang.org
 https://httpbin.org/html
+https://rutube.ru

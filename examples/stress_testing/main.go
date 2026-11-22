@@ -49,9 +49,11 @@ var blockedMediaURLs = []string{
 }
 
 type pageResult struct {
+	url      string
 	duration time.Duration
 	status   int
 	bytes    int64
+	err      string
 }
 
 type stats struct {
@@ -158,8 +160,9 @@ func openAndClose(ctx context.Context, workerID int, browser *rod.Browser, brows
 	started := time.Now()
 	var status atomic.Int32
 	var bytes atomic.Int64
+	var pageErr string
 	defer func() {
-		st.add(pageResult{duration: time.Since(started), status: int(status.Load()), bytes: bytes.Load()})
+		st.add(pageResult{url: target, duration: time.Since(started), status: int(status.Load()), bytes: bytes.Load(), err: pageErr})
 	}()
 
 	page, err := browser.Page(proto.TargetCreateTarget{
@@ -167,6 +170,7 @@ func openAndClose(ctx context.Context, workerID int, browser *rod.Browser, brows
 		BrowserContextID: browserContextID,
 	})
 	if err != nil {
+		pageErr = err.Error()
 		fmt.Printf("worker %d: open %s: %v\n", workerID, target, err)
 		return
 	}
@@ -212,29 +216,36 @@ func openAndClose(ctx context.Context, workerID int, browser *rod.Browser, brows
 
 	if err := page.Navigate(target); err != nil {
 		if ctx.Err() != nil {
+			pageErr = "canceled"
 			return
 		}
 		if navCtx.Err() != nil {
+			pageErr = "timeout"
 			fmt.Printf("worker %d: timeout %s\n", workerID, target)
 			return
 		}
+		pageErr = err.Error()
 		fmt.Printf("worker %d: navigate %s: %v\n", workerID, target, err)
 		return
 	}
 	if err := page.WaitLoad(); err != nil {
 		if ctx.Err() != nil {
+			pageErr = "canceled"
 			return
 		}
 		if navCtx.Err() != nil {
+			pageErr = "timeout"
 			fmt.Printf("worker %d: timeout %s\n", workerID, target)
 			return
 		}
+		pageErr = err.Error()
 		fmt.Printf("worker %d: load %s: %v\n", workerID, target, err)
 		return
 	}
 
 	info, err := page.Info()
 	if err != nil {
+		pageErr = err.Error()
 		fmt.Printf("worker %d: info %s: %v\n", workerID, target, err)
 		return
 	}
@@ -281,6 +292,18 @@ func printStats(start time.Time, st *stats) {
 		}
 	}
 	_ = w.Flush()
+
+	fmt.Println()
+	pw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(pw, "#\tURL\tRESULT")
+	for i, r := range results {
+		result := fmt.Sprintf("%s status=%d size=%s", r.duration.Round(time.Millisecond), r.status, formatBytes(r.bytes))
+		if r.status == 0 && r.err != "" {
+			result = fmt.Sprintf("%s status=0 size=%s error=%s", r.duration.Round(time.Millisecond), formatBytes(r.bytes), r.err)
+		}
+		fmt.Fprintf(pw, "%d\t%s\t%s\n", i+1, r.url, result)
+	}
+	_ = pw.Flush()
 }
 
 func medianDuration(ds []time.Duration) time.Duration {
