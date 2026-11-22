@@ -9,6 +9,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -175,7 +176,8 @@ func openAndClose(ctx context.Context, workerID int, browser *rod.Browser, brows
 		return
 	}
 	defer func() {
-		if closeErr := page.Close(); closeErr != nil {
+		p := page.Context(context.Background())
+		if closeErr := p.Close(); closeErr != nil {
 			fmt.Printf("worker %d: close %s: %v\n", workerID, target, closeErr)
 		}
 	}()
@@ -185,8 +187,10 @@ func openAndClose(ctx context.Context, workerID int, browser *rod.Browser, brows
 	page = page.Context(navCtx)
 	go func() {
 		<-navCtx.Done()
-		_ = page.StopLoading()
-		_ = page.Close()
+		if ctx.Err() != nil || errors.Is(navCtx.Err(), context.DeadlineExceeded) {
+			p := page.Context(context.Background())
+			_ = proto.PageStopLoading{}.Call(p)
+		}
 	}()
 
 	enableErr := proto.NetworkEnable{}.Call(page)
