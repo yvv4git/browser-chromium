@@ -19,12 +19,13 @@ go run ./stress_testing
 
 ## Flags
 
-| Flag       | Default                          | Description                               |
-| ---------- | -------------------------------- | ----------------------------------------- |
-| `-addr`    | `http://localhost:9222`          | CDP endpoint of the container             |
-| `-workers` | `5`                              | Number of parallel tabs                   |
-| `-proxy`   | empty                            | HTTP proxy URL, e.g. `http://host:8138`   |
-| `-list`    | `examples/stress_testing/list.txt` | Path to file with URLs                  |
+| Flag          | Default                          | Description                               |
+| ------------- | -------------------------------- | ----------------------------------------- |
+| `-addr`       | `http://localhost:9222`          | CDP endpoint of the container             |
+| `-workers`    | `5`                              | Number of parallel tabs                   |
+| `-proxy`      | empty                            | HTTP proxy URL, e.g. `http://host:8138`   |
+| `-list`       | `examples/stress_testing/list.txt` | Path to file with URLs                  |
+| `-block-media`| `false`                          | Block media requests (images/video/audio/fonts) |
 
 ## Examples
 

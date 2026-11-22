@@ -34,12 +34,17 @@ const (
 )
 
 var blockedMediaURLs = []string{
+	"*.png", "*.png?*", "*.jpg", "*.jpg?*", "*.jpeg", "*.jpeg?*",
+	"*.gif", "*.gif?*", "*.webp", "*.webp?*", "*.svg", "*.svg?*",
+	"*.ico", "*.ico?*", "*.bmp", "*.bmp?*", "*.avif", "*.avif?*",
 	"*.mp4", "*.mp4?*", "*.webm", "*.webm?*",
 	"*.mp3", "*.mp3?*", "*.m4a", "*.m4a?*",
 	"*.ogg", "*.ogg?*", "*.wav", "*.wav?*",
 	"*.avi", "*.avi?*", "*.mov", "*.mov?*",
 	"*.flv", "*.flv?*", "*.mkv", "*.mkv?*",
 	"*.m3u8", "*.m3u8?*", "*.ts", "*.ts?*",
+	"*.woff", "*.woff?*", "*.woff2", "*.woff2?*",
+	"*.ttf", "*.ttf?*", "*.otf", "*.otf?*",
 }
 
 type pageResult struct {
@@ -74,6 +79,7 @@ func main() {
 	workers := flag.Int("workers", defaultWorkers, "number of parallel tabs")
 	proxy := flag.String("proxy", "", "HTTP proxy URL (empty = direct)")
 	listPath := flag.String("list", defaultList, "path to file with URLs")
+	blockMedia := flag.Bool("block-media", false, "block media requests (images, video, audio, fonts)")
 	flag.Parse()
 
 	if *workers < 1 {
@@ -117,7 +123,7 @@ func main() {
 	var wg sync.WaitGroup
 	for i := range *workers {
 		wg.Add(1)
-		go worker(ctx, &wg, i+1, browser, browserContextID, jobs, st)
+		go worker(ctx, &wg, i+1, browser, browserContextID, jobs, st, *blockMedia)
 	}
 
 	fmt.Printf("workers: %d, targets: %d\n", *workers, len(targets))
@@ -136,17 +142,17 @@ loop:
 	printStats(start, st)
 }
 
-func worker(ctx context.Context, wg *sync.WaitGroup, id int, browser *rod.Browser, browserContextID proto.BrowserBrowserContextID, jobs <-chan string, st *stats) {
+func worker(ctx context.Context, wg *sync.WaitGroup, id int, browser *rod.Browser, browserContextID proto.BrowserBrowserContextID, jobs <-chan string, st *stats, blockMedia bool) {
 	defer wg.Done()
 	for target := range jobs {
 		if ctx.Err() != nil {
 			return
 		}
-		openAndClose(ctx, id, browser, browserContextID, target, st)
+		openAndClose(ctx, id, browser, browserContextID, target, st, blockMedia)
 	}
 }
 
-func openAndClose(ctx context.Context, workerID int, browser *rod.Browser, browserContextID proto.BrowserBrowserContextID, target string, st *stats) {
+func openAndClose(ctx context.Context, workerID int, browser *rod.Browser, browserContextID proto.BrowserBrowserContextID, target string, st *stats, blockMedia bool) {
 	started := time.Now()
 	var status atomic.Int32
 	var bytes atomic.Int64
@@ -196,8 +202,10 @@ func openAndClose(ctx context.Context, workerID int, browser *rod.Browser, brows
 	})
 	go waitStatus()
 
-	if err := page.SetBlockedURLs(blockedMediaURLs); err != nil {
-		fmt.Printf("worker %d: block media %s: %v\n", workerID, target, err)
+	if blockMedia {
+		if err := page.SetBlockedURLs(blockedMediaURLs); err != nil {
+			fmt.Printf("worker %d: block media %s: %v\n", workerID, target, err)
+		}
 	}
 
 	if err := page.Navigate(target); err != nil {
