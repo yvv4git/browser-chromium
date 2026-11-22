@@ -85,6 +85,7 @@ func main() {
 	listPath := flag.String("list", defaultList, "path to file with URLs")
 	blockMedia := flag.Bool("block-media", false, "block media requests (images, video, audio, fonts)")
 	pageTimeout := flag.Duration("timeout", defaultTimeout, "per-page load timeout")
+	loop := flag.Bool("loop", false, "iterate list repeatedly until interrupted")
 	flag.Parse()
 
 	if *workers < 1 {
@@ -140,6 +141,9 @@ loop:
 				break loop
 			case jobs <- target:
 			}
+		}
+		if !*loop {
+			break
 		}
 	}
 	close(jobs)

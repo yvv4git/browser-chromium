@@ -27,6 +27,7 @@ go run ./stress_testing
 | `-list`       | `examples/stress_testing/list.txt` | Path to file with URLs                  |
 | `-block-media`| `false`                          | Block media requests (images/video/audio/fonts) |
 | `-timeout`    | `10s`                            | Per-page load timeout                      |
+| `-loop`       | `false`                          | Iterate list repeatedly until interrupted |
 
 ## Examples
 
