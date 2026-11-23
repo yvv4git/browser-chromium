@@ -78,14 +78,14 @@ type stats struct {
 }
 
 type runMetrics struct {
-	RuntimeS         int64            `json:"runtime_s"`
-	PagesProcessed   int              `json:"pages_processed"`
-	MinPageTimeMS    int64            `json:"min_page_time_ms"`
-	MaxPageTimeMS    int64            `json:"max_page_time_ms"`
-	AvgPageTimeMS    int64            `json:"avg_page_time_ms"`
-	MedianPageTimeMS int64            `json:"median_page_time_ms"`
-	StatusCounts     map[int]int      `json:"status_counts"`
-	Non200URLs       map[int][]string `json:"non_200_urls,omitempty"`
+	RuntimeS        float64          `json:"runtime_s"`
+	PagesProcessed  int              `json:"pages_processed"`
+	MinPageTimeS    float64          `json:"min_page_time_s"`
+	MaxPageTimeS    float64          `json:"max_page_time_s"`
+	AvgPageTimeS    float64          `json:"avg_page_time_s"`
+	MedianPageTimeS float64          `json:"median_page_time_s"`
+	StatusCounts    map[int]int      `json:"status_counts"`
+	Non200URLs      map[int][]string `json:"non_200_urls,omitempty"`
 }
 
 func (s *stats) add(r pageResult) {
@@ -341,7 +341,7 @@ func printStats(start time.Time, st *stats, metricsDir string) {
 	total := time.Since(start)
 
 	metrics := runMetrics{
-		RuntimeS:       int64(total.Seconds()),
+		RuntimeS:       seconds(total),
 		PagesProcessed: len(results),
 	}
 
@@ -373,10 +373,10 @@ func printStats(start time.Time, st *stats, metricsDir string) {
 		avg := sum / time.Duration(len(durations))
 		median := medianDuration(durations)
 
-		metrics.MinPageTimeMS = durations[0].Milliseconds()
-		metrics.MaxPageTimeMS = durations[len(durations)-1].Milliseconds()
-		metrics.AvgPageTimeMS = avg.Milliseconds()
-		metrics.MedianPageTimeMS = median.Milliseconds()
+		metrics.MinPageTimeS = seconds(durations[0])
+		metrics.MaxPageTimeS = seconds(durations[len(durations)-1])
+		metrics.AvgPageTimeS = seconds(avg)
+		metrics.MedianPageTimeS = seconds(median)
 		metrics.StatusCounts = statusCounts
 		metrics.Non200URLs = non200URLs
 
@@ -437,6 +437,10 @@ func saveMetrics(dir string, metrics runMetrics) error {
 	}
 
 	return nil
+}
+
+func seconds(d time.Duration) float64 {
+	return float64(d.Round(time.Millisecond)) / float64(time.Second)
 }
 
 func medianDuration(ds []time.Duration) time.Duration {
