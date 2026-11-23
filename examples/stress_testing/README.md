@@ -49,6 +49,14 @@ save_html = false
 | `loop`        | `false`                            | Iterate list repeatedly until interrupted               |
 | `save_html`   | `false`                            | Save page HTML to `examples/stress_testing/result/[hostname].html` |
 
+## Proxy
+
+The example connects to the Chromium container over CDP and applies the proxy
+with `TargetCreateBrowserContext`. The proxy must be reachable **from inside
+the container**. For a proxy running on the Docker host, use an address such
+as `http://host.docker.internal:8138` (Docker Desktop); `localhost` would refer
+to the container itself.
+
 ## Flags
 
 | Flag       | Default                                      | Description         |
