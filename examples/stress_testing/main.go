@@ -281,10 +281,22 @@ func openAndClose(ctx context.Context, workerID int, browser *rod.Browser, brows
 		stableCancel()
 	}
 
-	if resultDir != "" {
+	if resultDir != "" || bytes.Load() == 0 {
 		saveCtx, saveCancel := context.WithTimeout(context.Background(), 30*time.Second)
-		if saveErr := savePageHTML(page.Context(saveCtx), target, resultDir); saveErr != nil {
-			fmt.Printf("worker %d: save html %s: %v\n", workerID, target, saveErr)
+		html, htmlErr := pageHTML(page.Context(saveCtx))
+		if htmlErr != nil {
+			if resultDir != "" {
+				fmt.Printf("worker %d: save html %s: %v\n", workerID, target, htmlErr)
+			}
+		} else {
+			if bytes.Load() == 0 {
+				bytes.Store(int64(len(html)))
+			}
+			if resultDir != "" {
+				if saveErr := writePageHTML(target, resultDir, html); saveErr != nil {
+					fmt.Printf("worker %d: save html %s: %v\n", workerID, target, saveErr)
+				}
+			}
 		}
 		saveCancel()
 	}
@@ -397,7 +409,7 @@ func sourceDir() string {
 	return filepath.Dir(file)
 }
 
-func savePageHTML(page *rod.Page, target, resultDir string) error {
+func writePageHTML(target, resultDir, html string) error {
 	u, err := url.Parse(target)
 	if err != nil {
 		return fmt.Errorf("parse url: %w", err)
@@ -407,11 +419,6 @@ func savePageHTML(page *rod.Page, target, resultDir string) error {
 		host = "page"
 	}
 	host = strings.ReplaceAll(host, ":", "_")
-
-	html, err := pageHTML(page)
-	if err != nil {
-		return err
-	}
 
 	path := filepath.Join(resultDir, host+".html")
 	return os.WriteFile(path, []byte(html), 0o644)
