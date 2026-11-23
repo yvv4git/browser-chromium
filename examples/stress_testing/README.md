@@ -118,6 +118,7 @@ save_html = false
 Stop with `Ctrl+C`. The app performs graceful shutdown, closes active tabs, and prints:
 
 - summary statistics: runtime, pages processed, min/max/avg/median page time, HTTP status code counts;
-- per-page results table sorted by URL, status, and size.
+- per-page results table sorted by URL, status, and size;
+- summary metrics saved to `result/<YYYY-MM-DD_HH_MM>.json`.
 
 Status `0` means no HTTP response was captured, e.g. DNS resolution failure or navigation error.

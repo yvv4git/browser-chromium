@@ -9,6 +9,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -32,7 +34,10 @@ import (
 	"github.com/yvv4git/browser-chromium/examples/internal/cdp"
 )
 
-const defaultConfig = "config.toml"
+const (
+	defaultConfig     = "config.toml"
+	metricsTimeLayout = "2006-01-02_15_04"
+)
 
 var blockedMediaURLs = []string{
 	"*.png", "*.png?*", "*.jpg", "*.jpg?*", "*.jpeg", "*.jpeg?*",
@@ -70,6 +75,16 @@ type pageResult struct {
 type stats struct {
 	mu      sync.Mutex
 	results []pageResult
+}
+
+type runMetrics struct {
+	RuntimeMS        int64       `json:"runtime_ms"`
+	PagesProcessed   int         `json:"pages_processed"`
+	MinPageTimeMS    int64       `json:"min_page_time_ms"`
+	MaxPageTimeMS    int64       `json:"max_page_time_ms"`
+	AvgPageTimeMS    int64       `json:"avg_page_time_ms"`
+	MedianPageTimeMS int64       `json:"median_page_time_ms"`
+	StatusCounts     map[int]int `json:"status_counts"`
 }
 
 func (s *stats) add(r pageResult) {
@@ -143,13 +158,15 @@ func main() {
 	defer signal.Stop(sigCh)
 	defer cancel()
 
+	metricsDir := filepath.Join(sourceDir(), "result")
+	if err := os.MkdirAll(metricsDir, 0o755); err != nil {
+		fmt.Fprintf(os.Stderr, "create result dir: %v\n", err)
+		os.Exit(1)
+	}
+
 	resultDir := ""
 	if cfg.SaveHTML {
-		resultDir = filepath.Join(sourceDir(), "result")
-		if err := os.MkdirAll(resultDir, 0o755); err != nil {
-			fmt.Fprintf(os.Stderr, "create result dir: %v\n", err)
-			os.Exit(1)
-		}
+		resultDir = metricsDir
 		fmt.Printf("save html: %s\n", resultDir)
 	}
 
@@ -177,7 +194,7 @@ loop:
 	}
 	close(jobs)
 	wg.Wait()
-	printStats(start, st)
+	printStats(start, st, metricsDir)
 }
 
 func worker(ctx context.Context, wg *sync.WaitGroup, id int, browser *rod.Browser, browserContextID proto.BrowserBrowserContextID, jobs <-chan string, st *stats, blockMedia bool, pageTimeout time.Duration, resultDir string) {
@@ -315,9 +332,14 @@ func openAndClose(ctx context.Context, workerID int, browser *rod.Browser, brows
 	fmt.Printf("worker %d: %s - %s [status=%d time=%s size=%s]\n", workerID, info.URL, info.Title, status.Load(), elapsed, formatBytes(bytes.Load()))
 }
 
-func printStats(start time.Time, st *stats) {
+func printStats(start time.Time, st *stats, metricsDir string) {
 	results := st.snapshot()
 	total := time.Since(start)
+
+	metrics := runMetrics{
+		RuntimeMS:      total.Milliseconds(),
+		PagesProcessed: len(results),
+	}
 
 	fmt.Println()
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
@@ -331,18 +353,25 @@ func printStats(start time.Time, st *stats) {
 			durations[i] = r.duration
 			statusCounts[r.status]++
 		}
-		sort.Slice(durations, func(i, j int) bool { return durations[i] < durations[j] })
+		slices.Sort(durations)
 
 		var sum time.Duration
 		for _, d := range durations {
 			sum += d
 		}
 		avg := sum / time.Duration(len(durations))
+		median := medianDuration(durations)
+
+		metrics.MinPageTimeMS = durations[0].Milliseconds()
+		metrics.MaxPageTimeMS = durations[len(durations)-1].Milliseconds()
+		metrics.AvgPageTimeMS = avg.Milliseconds()
+		metrics.MedianPageTimeMS = median.Milliseconds()
+		metrics.StatusCounts = statusCounts
 
 		fmt.Fprintf(w, "Min page time\t%s\n", durations[0].Round(time.Millisecond))
 		fmt.Fprintf(w, "Max page time\t%s\n", durations[len(durations)-1].Round(time.Millisecond))
 		fmt.Fprintf(w, "Avg page time\t%s\n", avg.Round(time.Millisecond))
-		fmt.Fprintf(w, "Median page time\t%s\n", medianDuration(durations).Round(time.Millisecond))
+		fmt.Fprintf(w, "Median page time\t%s\n", median.Round(time.Millisecond))
 
 		codes := make([]int, 0, len(statusCounts))
 		for code := range statusCounts {
@@ -378,6 +407,24 @@ func printStats(start time.Time, st *stats) {
 		fmt.Fprintf(pw, "%d\t%s\t%s\n", i+1, r.url, result)
 	}
 	_ = pw.Flush()
+
+	if err := saveMetrics(metricsDir, metrics); err != nil {
+		fmt.Fprintf(os.Stderr, "save metrics: %v\n", err)
+	}
+}
+
+func saveMetrics(dir string, metrics runMetrics) error {
+	data, err := json.MarshalIndent(metrics, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal metrics: %w", err)
+	}
+
+	path := filepath.Join(dir, time.Now().Format(metricsTimeLayout)+".json")
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("write metrics %s: %w", path, err)
+	}
+
+	return nil
 }
 
 func medianDuration(ds []time.Duration) time.Duration {
