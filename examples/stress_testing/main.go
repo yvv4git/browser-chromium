@@ -223,8 +223,9 @@ func openAndClose(ctx context.Context, workerID int, browser *rod.Browser, brows
 	go func() {
 		<-navCtx.Done()
 		if ctx.Err() != nil || errors.Is(navCtx.Err(), context.DeadlineExceeded) {
-			p := page.Context(context.Background())
-			_ = proto.PageStopLoading{}.Call(p)
+			stopCtx, stopCancel := context.WithTimeout(context.Background(), 2*time.Second)
+			_ = proto.PageStopLoading{}.Call(page.Context(stopCtx))
+			stopCancel()
 		}
 	}()
 
@@ -253,54 +254,43 @@ func openAndClose(ctx context.Context, workerID int, browser *rod.Browser, brows
 		}
 	}
 
-	if err := page.Navigate(target); err != nil {
-		if ctx.Err() != nil {
-			pageErr = "canceled"
-			return
-		}
-		if navCtx.Err() != nil {
-			pageErr = "timeout"
-			fmt.Printf("worker %d: timeout %s\n", workerID, target)
-			if resultDir != "" {
-				saveCtx, saveCancel := context.WithTimeout(context.Background(), 5*time.Second)
-				if saveErr := savePageHTML(page.Context(saveCtx), target, resultDir); saveErr != nil {
-					fmt.Printf("worker %d: save html %s: %v\n", workerID, target, saveErr)
-				}
-				saveCancel()
-			}
-			return
-		}
-		pageErr = err.Error()
-		fmt.Printf("worker %d: navigate %s: %v\n", workerID, target, err)
-		return
+	navigateErr := page.Navigate(target)
+	loadErr := error(nil)
+	if navigateErr == nil {
+		loadErr = page.WaitLoad()
 	}
-	if err := page.WaitLoad(); err != nil {
-		if ctx.Err() != nil {
-			pageErr = "canceled"
-			return
-		}
-		if navCtx.Err() != nil {
-			pageErr = "timeout"
-			fmt.Printf("worker %d: timeout %s\n", workerID, target)
-			if resultDir != "" {
-				saveCtx, saveCancel := context.WithTimeout(context.Background(), 5*time.Second)
-				if saveErr := savePageHTML(page.Context(saveCtx), target, resultDir); saveErr != nil {
-					fmt.Printf("worker %d: save html %s: %v\n", workerID, target, saveErr)
-				}
-				saveCancel()
-			}
-			return
-		}
-		pageErr = err.Error()
-		fmt.Printf("worker %d: load %s: %v\n", workerID, target, err)
-		return
+
+	canceled := ctx.Err() != nil
+	timedOut := !canceled && errors.Is(navCtx.Err(), context.DeadlineExceeded)
+
+	switch {
+	case canceled:
+		pageErr = "canceled"
+	case timedOut:
+		pageErr = "timeout"
+		fmt.Printf("worker %d: timeout %s\n", workerID, target)
+	case navigateErr != nil:
+		pageErr = navigateErr.Error()
+		fmt.Printf("worker %d: navigate %s: %v\n", workerID, target, navigateErr)
+	case loadErr != nil:
+		pageErr = loadErr.Error()
+		fmt.Printf("worker %d: load %s: %v\n", workerID, target, loadErr)
+	default:
+		stableCtx, stableCancel := context.WithTimeout(navCtx, time.Second)
+		_ = page.Context(stableCtx).WaitDOMStable(time.Second, 0)
+		stableCancel()
 	}
-	_ = page.WaitDOMStable(time.Second, 0)
 
 	if resultDir != "" {
-		if err := savePageHTML(page, target, resultDir); err != nil {
-			fmt.Printf("worker %d: save html %s: %v\n", workerID, target, err)
+		saveCtx, saveCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		if saveErr := savePageHTML(page.Context(saveCtx), target, resultDir); saveErr != nil {
+			fmt.Printf("worker %d: save html %s: %v\n", workerID, target, saveErr)
 		}
+		saveCancel()
+	}
+
+	if pageErr != "" && !timedOut {
+		return
 	}
 
 	info, err := page.Info()
@@ -418,15 +408,38 @@ func savePageHTML(page *rod.Page, target, resultDir string) error {
 	}
 	host = strings.ReplaceAll(host, ":", "_")
 
-	html, err := page.HTML()
+	html, err := pageHTML(page)
 	if err != nil {
 		return err
 	}
+
 	path := filepath.Join(resultDir, host+".html")
-	if err := os.WriteFile(path, []byte(html), 0o644); err != nil {
-		return err
+	return os.WriteFile(path, []byte(html), 0o644)
+}
+
+func pageHTML(page *rod.Page) (string, error) {
+	doc, err := proto.DOMGetDocument{}.Call(page)
+	if err == nil && doc.Root != nil {
+		res, err := proto.DOMGetOuterHTML{BackendNodeID: doc.Root.BackendNodeID}.Call(page)
+		if err == nil {
+			return res.OuterHTML, nil
+		}
 	}
-	return nil
+
+	res, err := proto.RuntimeEvaluate{
+		Expression:    "document.documentElement ? document.documentElement.outerHTML : ''",
+		ReturnByValue: true,
+	}.Call(page)
+	if err != nil {
+		return "", err
+	}
+	if res.ExceptionDetails != nil {
+		return "", fmt.Errorf("evaluate html: %s", res.ExceptionDetails.Text)
+	}
+	if res.Result.Value.Val() == nil {
+		return "", nil
+	}
+	return fmt.Sprint(res.Result.Value.Val()), nil
 }
 
 func formatBytes(n int64) string {
