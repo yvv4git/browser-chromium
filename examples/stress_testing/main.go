@@ -250,6 +250,7 @@ func openAndClose(ctx context.Context, workerID int, browser *rod.Browser, brows
 		fmt.Printf("worker %d: load %s: %v\n", workerID, target, err)
 		return
 	}
+	_ = page.WaitDOMStable(time.Second, 0)
 
 	info, err := page.Info()
 	if err != nil {
