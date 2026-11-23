@@ -18,7 +18,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -37,6 +36,7 @@ import (
 const (
 	defaultConfig     = "config.toml"
 	metricsTimeLayout = "2006-01-02_15_04"
+	statusOK          = 200
 )
 
 var blockedMediaURLs = []string{
@@ -78,13 +78,14 @@ type stats struct {
 }
 
 type runMetrics struct {
-	RuntimeMS        int64       `json:"runtime_ms"`
-	PagesProcessed   int         `json:"pages_processed"`
-	MinPageTimeMS    int64       `json:"min_page_time_ms"`
-	MaxPageTimeMS    int64       `json:"max_page_time_ms"`
-	AvgPageTimeMS    int64       `json:"avg_page_time_ms"`
-	MedianPageTimeMS int64       `json:"median_page_time_ms"`
-	StatusCounts     map[int]int `json:"status_counts"`
+	RuntimeS         int64            `json:"runtime_s"`
+	PagesProcessed   int              `json:"pages_processed"`
+	MinPageTimeMS    int64            `json:"min_page_time_ms"`
+	MaxPageTimeMS    int64            `json:"max_page_time_ms"`
+	AvgPageTimeMS    int64            `json:"avg_page_time_ms"`
+	MedianPageTimeMS int64            `json:"median_page_time_ms"`
+	StatusCounts     map[int]int      `json:"status_counts"`
+	Non200URLs       map[int][]string `json:"non_200_urls,omitempty"`
 }
 
 func (s *stats) add(r pageResult) {
@@ -337,7 +338,7 @@ func printStats(start time.Time, st *stats, metricsDir string) {
 	total := time.Since(start)
 
 	metrics := runMetrics{
-		RuntimeMS:      total.Milliseconds(),
+		RuntimeS:       int64(total.Seconds()),
 		PagesProcessed: len(results),
 	}
 
@@ -349,11 +350,18 @@ func printStats(start time.Time, st *stats, metricsDir string) {
 	if len(results) > 0 {
 		durations := make([]time.Duration, len(results))
 		statusCounts := map[int]int{}
+		non200URLs := map[int][]string{}
 		for i, r := range results {
 			durations[i] = r.duration
 			statusCounts[r.status]++
+			if r.status != statusOK {
+				non200URLs[r.status] = append(non200URLs[r.status], r.url)
+			}
 		}
-		slices.Sort(durations)
+		sort.Slice(durations, func(i, j int) bool { return durations[i] < durations[j] })
+		for code := range non200URLs {
+			sort.Strings(non200URLs[code])
+		}
 
 		var sum time.Duration
 		for _, d := range durations {
@@ -367,6 +375,7 @@ func printStats(start time.Time, st *stats, metricsDir string) {
 		metrics.AvgPageTimeMS = avg.Milliseconds()
 		metrics.MedianPageTimeMS = median.Milliseconds()
 		metrics.StatusCounts = statusCounts
+		metrics.Non200URLs = non200URLs
 
 		fmt.Fprintf(w, "Min page time\t%s\n", durations[0].Round(time.Millisecond))
 		fmt.Fprintf(w, "Max page time\t%s\n", durations[len(durations)-1].Round(time.Millisecond))
