@@ -138,6 +138,9 @@ func main() {
 			os.Exit(1)
 		}
 		browserContextID = id.BrowserContextID
+		incognito := *browser
+		incognito.BrowserContextID = browserContextID
+		browser = &incognito
 		defer func() {
 			_ = proto.TargetDisposeBrowserContext{BrowserContextID: browserContextID}.Call(browser)
 		}()
