@@ -1,0 +1,23 @@
+# CDP endpoint of the Chromium container
+addr = "http://localhost:9222"
+
+# Number of parallel tabs
+workers = 1
+
+# HTTP proxy URL (empty = direct)
+proxy = "http://localhost:8138"
+
+# Path to file with URLs
+list = "stress_testing/one.txt"
+
+# Block media requests (images, video, audio, fonts)
+block_media = false
+
+# Per-page load timeout
+timeout = "15s"
+
+# Iterate list repeatedly until interrupted
+loop = false
+
+# Save page HTML to examples/stress_testing/result/[hostname].html
+save_html = true

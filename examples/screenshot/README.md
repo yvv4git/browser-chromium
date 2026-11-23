@@ -25,6 +25,12 @@ Full-page screenshot:
 go run ./screenshot -addr http://localhost:9222 -url https://www.wikipedia.org -full -output wikipedia_full.png
 ```
 
+Through HTTP proxy:
+
+```bash
+go run ./screenshot -addr http://localhost:9222 -url https://www.wikipedia.org -proxy http://localhost:8138
+```
+
 ## Flags
 
 | Flag      | Default                     | Description                            |
@@ -33,5 +39,6 @@ go run ./screenshot -addr http://localhost:9222 -url https://www.wikipedia.org -
 | `-url`    | `https://www.wikipedia.org` | Page to load                           |
 | `-output` | `screenshot.png`            | Output file                            |
 | `-full`   | `false`                     | Capture full page instead of viewport  |
+| `-proxy`  | empty                       | HTTP proxy URL, e.g. `http://localhost:8138` |
 
 Run `go run ./screenshot -h` for the full list.

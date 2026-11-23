@@ -12,8 +12,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -22,18 +25,14 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
 
 	"github.com/yvv4git/browser-chromium/examples/internal/cdp"
 )
 
-const (
-	defaultAddr    = "http://localhost:9222"
-	defaultWorkers = 5
-	defaultList    = "examples/stress_testing/list.txt"
-	defaultTimeout = 10 * time.Second
-)
+const defaultConfig = "config.toml"
 
 var blockedMediaURLs = []string{
 	"*.png", "*.png?*", "*.jpg", "*.jpg?*", "*.jpeg", "*.jpeg?*",
@@ -47,6 +46,17 @@ var blockedMediaURLs = []string{
 	"*.m3u8", "*.m3u8?*", "*.ts", "*.ts?*",
 	"*.woff", "*.woff?*", "*.woff2", "*.woff2?*",
 	"*.ttf", "*.ttf?*", "*.otf", "*.otf?*",
+}
+
+type config struct {
+	Addr       string        `toml:"addr"`
+	Workers    int           `toml:"workers"`
+	Proxy      string        `toml:"proxy"`
+	List       string        `toml:"list"`
+	BlockMedia bool          `toml:"block_media"`
+	Timeout    time.Duration `toml:"timeout"`
+	Loop       bool          `toml:"loop"`
+	SaveHTML   bool          `toml:"save_html"`
 }
 
 type pageResult struct {
@@ -79,21 +89,20 @@ func (s *stats) snapshot() []pageResult {
 func main() {
 	start := time.Now()
 
-	addr := flag.String("addr", defaultAddr, "CDP endpoint of the Chromium container")
-	workers := flag.Int("workers", defaultWorkers, "number of parallel tabs")
-	proxy := flag.String("proxy", "", "HTTP proxy URL (empty = direct)")
-	listPath := flag.String("list", defaultList, "path to file with URLs")
-	blockMedia := flag.Bool("block-media", false, "block media requests (images, video, audio, fonts)")
-	pageTimeout := flag.Duration("timeout", defaultTimeout, "per-page load timeout")
-	loop := flag.Bool("loop", false, "iterate list repeatedly until interrupted")
+	configPath := flag.String("config", filepath.Join(sourceDir(), defaultConfig), "path to config.toml")
 	flag.Parse()
 
-	if *workers < 1 {
+	cfg, err := loadConfig(*configPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if cfg.Workers < 1 {
 		fmt.Fprintln(os.Stderr, "workers must be >= 1")
 		os.Exit(1)
 	}
 
-	targets, err := readList(*listPath)
+	targets, err := readList(cfg.List)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -103,11 +112,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	browser := cdp.Connect(*addr)
+	browser := cdp.Connect(cfg.Addr)
 
 	var browserContextID proto.BrowserBrowserContextID
-	if *proxy != "" {
-		id, createErr := proto.TargetCreateBrowserContext{ProxyServer: *proxy}.Call(browser)
+	if cfg.Proxy != "" {
+		id, createErr := proto.TargetCreateBrowserContext{ProxyServer: cfg.Proxy}.Call(browser)
 		if createErr != nil {
 			fmt.Fprintf(os.Stderr, "create browser context: %v\n", createErr)
 			os.Exit(1)
@@ -116,23 +125,43 @@ func main() {
 		defer func() {
 			_ = proto.TargetDisposeBrowserContext{BrowserContextID: browserContextID}.Call(browser)
 		}()
-		fmt.Printf("proxy: %s\n", *proxy)
+		fmt.Printf("proxy: %s\n", cfg.Proxy)
 	} else {
 		fmt.Println("proxy: direct")
 	}
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	ctx, cancel := context.WithCancel(context.Background())
+	sigCh := make(chan os.Signal, 2)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		cancel()
+		<-sigCh
+		fmt.Fprintln(os.Stderr, "forced exit")
+		os.Exit(1)
+	}()
+	defer signal.Stop(sigCh)
 	defer cancel()
+
+	resultDir := ""
+	if cfg.SaveHTML {
+		resultDir = filepath.Join(sourceDir(), "result")
+		if err := os.MkdirAll(resultDir, 0o755); err != nil {
+			fmt.Fprintf(os.Stderr, "create result dir: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("save html: %s\n", resultDir)
+	}
 
 	st := &stats{}
 	jobs := make(chan string)
 	var wg sync.WaitGroup
-	for i := range *workers {
+	for i := range cfg.Workers {
 		wg.Add(1)
-		go worker(ctx, &wg, i+1, browser, browserContextID, jobs, st, *blockMedia, *pageTimeout)
+		go worker(ctx, &wg, i+1, browser, browserContextID, jobs, st, cfg.BlockMedia, cfg.Timeout, resultDir)
 	}
 
-	fmt.Printf("workers: %d, targets: %d\n", *workers, len(targets))
+	fmt.Printf("workers: %d, targets: %d\n", cfg.Workers, len(targets))
 loop:
 	for {
 		for _, target := range targets {
@@ -142,7 +171,7 @@ loop:
 			case jobs <- target:
 			}
 		}
-		if !*loop {
+		if !cfg.Loop {
 			break
 		}
 	}
@@ -151,17 +180,17 @@ loop:
 	printStats(start, st)
 }
 
-func worker(ctx context.Context, wg *sync.WaitGroup, id int, browser *rod.Browser, browserContextID proto.BrowserBrowserContextID, jobs <-chan string, st *stats, blockMedia bool, pageTimeout time.Duration) {
+func worker(ctx context.Context, wg *sync.WaitGroup, id int, browser *rod.Browser, browserContextID proto.BrowserBrowserContextID, jobs <-chan string, st *stats, blockMedia bool, pageTimeout time.Duration, resultDir string) {
 	defer wg.Done()
 	for target := range jobs {
 		if ctx.Err() != nil {
 			return
 		}
-		openAndClose(ctx, id, browser, browserContextID, target, st, blockMedia, pageTimeout)
+		openAndClose(ctx, id, browser, browserContextID, target, st, blockMedia, pageTimeout, resultDir)
 	}
 }
 
-func openAndClose(ctx context.Context, workerID int, browser *rod.Browser, browserContextID proto.BrowserBrowserContextID, target string, st *stats, blockMedia bool, pageTimeout time.Duration) {
+func openAndClose(ctx context.Context, workerID int, browser *rod.Browser, browserContextID proto.BrowserBrowserContextID, target string, st *stats, blockMedia bool, pageTimeout time.Duration, resultDir string) {
 	started := time.Now()
 	var status atomic.Int32
 	var bytes atomic.Int64
@@ -180,7 +209,9 @@ func openAndClose(ctx context.Context, workerID int, browser *rod.Browser, brows
 		return
 	}
 	defer func() {
-		p := page.Context(context.Background())
+		closeCtx, closeCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer closeCancel()
+		p := page.Context(closeCtx)
 		if closeErr := p.Close(); closeErr != nil {
 			fmt.Printf("worker %d: close %s: %v\n", workerID, target, closeErr)
 		}
@@ -230,6 +261,13 @@ func openAndClose(ctx context.Context, workerID int, browser *rod.Browser, brows
 		if navCtx.Err() != nil {
 			pageErr = "timeout"
 			fmt.Printf("worker %d: timeout %s\n", workerID, target)
+			if resultDir != "" {
+				saveCtx, saveCancel := context.WithTimeout(context.Background(), 5*time.Second)
+				if saveErr := savePageHTML(page.Context(saveCtx), target, resultDir); saveErr != nil {
+					fmt.Printf("worker %d: save html %s: %v\n", workerID, target, saveErr)
+				}
+				saveCancel()
+			}
 			return
 		}
 		pageErr = err.Error()
@@ -244,6 +282,13 @@ func openAndClose(ctx context.Context, workerID int, browser *rod.Browser, brows
 		if navCtx.Err() != nil {
 			pageErr = "timeout"
 			fmt.Printf("worker %d: timeout %s\n", workerID, target)
+			if resultDir != "" {
+				saveCtx, saveCancel := context.WithTimeout(context.Background(), 5*time.Second)
+				if saveErr := savePageHTML(page.Context(saveCtx), target, resultDir); saveErr != nil {
+					fmt.Printf("worker %d: save html %s: %v\n", workerID, target, saveErr)
+				}
+				saveCancel()
+			}
 			return
 		}
 		pageErr = err.Error()
@@ -251,6 +296,12 @@ func openAndClose(ctx context.Context, workerID int, browser *rod.Browser, brows
 		return
 	}
 	_ = page.WaitDOMStable(time.Second, 0)
+
+	if resultDir != "" {
+		if err := savePageHTML(page, target, resultDir); err != nil {
+			fmt.Printf("worker %d: save html %s: %v\n", workerID, target, err)
+		}
+	}
 
 	info, err := page.Info()
 	if err != nil {
@@ -333,6 +384,49 @@ func medianDuration(ds []time.Duration) time.Duration {
 		return ds[n/2]
 	}
 	return (ds[n/2-1] + ds[n/2]) / 2
+}
+
+func loadConfig(path string) (config, error) {
+	cfg := config{
+		Addr:    "http://localhost:9222",
+		Workers: 5,
+		List:    "examples/stress_testing/list.txt",
+		Timeout: 10 * time.Second,
+	}
+	if _, err := toml.DecodeFile(path, &cfg); err != nil {
+		return config{}, fmt.Errorf("load config %s: %w", path, err)
+	}
+	return cfg, nil
+}
+
+func sourceDir() string {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		return "."
+	}
+	return filepath.Dir(file)
+}
+
+func savePageHTML(page *rod.Page, target, resultDir string) error {
+	u, err := url.Parse(target)
+	if err != nil {
+		return fmt.Errorf("parse url: %w", err)
+	}
+	host := u.Hostname()
+	if host == "" {
+		host = "page"
+	}
+	host = strings.ReplaceAll(host, ":", "_")
+
+	html, err := page.HTML()
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(resultDir, host+".html")
+	if err := os.WriteFile(path, []byte(html), 0o644); err != nil {
+		return err
+	}
+	return nil
 }
 
 func formatBytes(n int64) string {
