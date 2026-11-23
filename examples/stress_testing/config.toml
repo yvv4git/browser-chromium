@@ -8,13 +8,13 @@ workers = 1
 proxy = "http://localhost:8138"
 
 # Path to file with URLs
-list = "stress_testing/one.txt"
+list = "stress_testing/lists/one.txt"
 
 # Block media requests (images, video, audio, fonts)
 block_media = false
 
 # Per-page load timeout
-timeout = "15s"
+timeout = "10s"
 
 # Iterate list repeatedly until interrupted
 loop = false
