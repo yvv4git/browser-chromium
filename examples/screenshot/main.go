@@ -11,6 +11,7 @@ import (
 	"flag"
 	"log"
 
+	"github.com/go-rod/rod/lib/proto"
 	"github.com/go-rod/rod/lib/utils"
 
 	"github.com/yvv4git/browser-chromium/examples/internal/cdp"
@@ -21,9 +22,26 @@ func main() {
 	pageURL := flag.String("url", "https://www.wikipedia.org", "page to load")
 	output := flag.String("output", "screenshot.png", "output file")
 	full := flag.Bool("full", false, "capture full page instead of viewport")
+	proxy := flag.String("proxy", "", "HTTP proxy URL (empty = direct)")
 	flag.Parse()
 
 	browser := cdp.Connect(*addr)
+
+	if *proxy != "" {
+		id, err := proto.TargetCreateBrowserContext{ProxyServer: *proxy}.Call(browser)
+		if err != nil {
+			log.Fatalf("create browser context: %v", err)
+		}
+		browserContextID := id.BrowserContextID
+		defer func() {
+			_ = proto.TargetDisposeBrowserContext{BrowserContextID: browserContextID}.Call(browser)
+		}()
+
+		incognito := *browser
+		incognito.BrowserContextID = browserContextID
+		browser = &incognito
+		log.Printf("proxy: %s", *proxy)
+	}
 
 	page := browser.MustPage(*pageURL).MustWaitLoad()
 	defer page.MustClose()

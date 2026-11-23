@@ -15,11 +15,13 @@ services:
       - "CHROME_ARGS_EXTRA=${CHROME_ARGS_EXTRA:-}"
       - "BROWSER_MODE=${BROWSER_MODE:-vnc}"
       - "SELKIES_BASIC_AUTH_PASSWORD=${SELKIES_BASIC_AUTH_PASSWORD:-}"
+      - "NOKK_ARGS=${NOKK_ARGS:-}"
     volumes:
       - "./profile:/config"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     shm_size: 2g
+    mem_limit: ${MEM_LIMIT:-100m}
     restart: unless-stopped
     logging:
       driver: "json-file"

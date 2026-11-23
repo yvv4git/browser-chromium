@@ -10,7 +10,8 @@
 Docker image with Chromium browser with VNC/noVNC support
 for remote access and automation, plus a variant with
 [Selkies](https://github.com/selkies-project/selkies) (H.264/WebSocket
-streaming) instead of VNC.
+streaming) instead of VNC, and a minimal headless variant with
+`chrome-headless-shell` for CDP-only automation.
 
 ## Table of contents
 
@@ -29,6 +30,8 @@ streaming) instead of VNC.
 - Chromium with headless support via Xvfb
 - Interactive VNC access via noVNC web interface
 - Alternative variant: Selkies low-latency H.264 streaming web UI (`docker/selkies`)
+- Minimal headless variant: `chrome-headless-shell` with CDP only (`docker/headless`)
+- Stealth headless variant: `nokk` with CDP only (`docker/nokk`)
 - Chrome DevTools Protocol (CDP) for automation
 - HTTP proxy support
 - Profile persistence via volume
@@ -86,6 +89,20 @@ BROWSER_VARIANT=selkies make compose-up
 http://localhost:8080
 ```
 
+Or build and run the minimal headless variant (CDP only):
+
+```bash
+make image-build-headless
+BROWSER_VARIANT=headless make compose-up
+```
+
+Or build and run the nokk variant (CDP only):
+
+```bash
+make image-build-nokk
+BROWSER_VARIANT=nokk make compose-up
+```
+
 Check CDP:
 
 ```bash
@@ -98,18 +115,22 @@ Create a `.env` file (see `.env.example`):
 
 | Variable            | Description                                       |
 | ------------------- | ------------------------------------------------- |
-| `BROWSER_VARIANT`   | Browser image version: `default`, `optimized` or `selkies` |
+| `BROWSER_VARIANT`   | Browser image version: `default`, `optimized`, `selkies`, `headless` or `nokk` |
 | `RESOLUTION`        | Screen resolution                                 |
+| `MEM_LIMIT`         | Container memory limit                            |
 | `PROXY`             | Proxy URL e.g. `http://host.docker.internal:8138` |
 | `CHROME_ARGS_EXTRA` | Extra Chrome flags                                |
 | `SELKIES_BASIC_AUTH_PASSWORD` | Selkies web UI login (empty = no login)  |
+| `NOKK_ARGS`         | Extra nokk args (nokk variant only)              |
 
 | Variable            | Default     |
 | ------------------- | ----------- |
 | `BROWSER_VARIANT`   | `default`   |
 | `RESOLUTION`        | `1920x1080` |
+| `MEM_LIMIT`         | `100m`      |
 | `PROXY`             | empty       |
 | `CHROME_ARGS_EXTRA` | empty       |
+| `NOKK_ARGS`         | empty       |
 
 Set `BROWSER_VARIANT=optimized` in `.env` to run the optimized image.
 
@@ -135,6 +156,8 @@ curl http://localhost:9222/json/version
 | 3000 | noVNC web interface            |
 | 8080 | Selkies web interface (selkies variant) |
 
+The `headless` and `nokk` variants expose only CDP (9222/9223 inside the container network).
+
 ## Project structure
 
 | Path                             | Description                                             |
@@ -145,6 +168,10 @@ curl http://localhost:9222/json/version
 | `docker/optimized/entrypoint.sh` | Launcher for the optimized variant                      |
 | `docker/selkies/Dockerfile`      | Selkies variant: chromium + Selkies instead of VNC      |
 | `docker/selkies/entrypoint.sh`   | Starts Xvfb, Selkies and Chromium                       |
+| `docker/headless/Dockerfile`     | Minimal headless image: `chrome-headless-shell` only    |
+| `docker/headless/entrypoint.sh`  | Starts socat and `chrome-headless-shell` CDP server     |
+| `docker/nokk/Dockerfile`         | Minimal stealth image: `nokk` browser only              |
+| `docker/nokk/entrypoint.sh`      | Starts socat and `nokk` CDP server                      |
 | `docker-compose.yaml`            | Service definition with ports and volumes               |
 | `Makefile`                       | Build, run, stop commands                               |
 | `.env.example`                   | Environment variables template                          |
